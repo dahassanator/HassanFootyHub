@@ -53,6 +53,30 @@ a player's body-part usage — and that because it depends on global player stat
 would eventually require a precomputed lookup rather than living in a stateless
 feature function.
 
+## Day 4 — xG model training (Phase 2)
+
+I built the `03_xg_model` notebook, where I finally trained and compared real xG
+models on the feature matrix from 02. I used a three-way stratified split — train
+to fit, a small validation set purely to time XGBoost's early stopping, and a test
+set I never touched until the final read — so the headline metrics stay honest and
+nothing leaks in from evaluation. I fit a logistic regression baseline inside a
+`StandardScaler` pipeline first, then XGBoost with early stopping, and deliberately
+skipped any class rebalancing: for xG I care about calibrated probabilities, not
+classification, and reweighting the classes would distort exactly the numbers I'm
+trying to trust. The result that shouldn't have surprised me but did — logistic
+regression narrowly won on every metric (log loss 0.2393 vs 0.2401, ROC-AUC 0.865
+vs 0.858), with both models beating the base-rate floor by roughly 30% — and the
+lesson is that with only nine features and a smooth, monotonic relationship between
+distance/angle and goal probability, there's nothing nonlinear for the trees to
+exploit, so the simpler model wins and I can explain precisely why. I checked
+calibration against StatsBomb's own xG and got a 0.984 per-match correlation on
+total xG, while noting the honest caveat that my summed xG landing near the actual
+goal count is mostly a property of intercept-fit logistic regression, not proof I
+beat StatsBomb. Finally I saved the winning pipeline with `joblib` — the scaler
+travels inside the artifact, so there's no training-serving skew at inference —
+and logged the one real gotcha: I had to re-pull the raw shots to recover
+`shot_statsbomb_xg` and `match_id`, which notebook 02 never wrote to the CSV.
+
 ---
 
 <!--
